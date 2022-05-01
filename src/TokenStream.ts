@@ -51,7 +51,7 @@ function is_keyword(identifier: string) {
 
 function is_digit(char: string) {
   // assic '0' => 48  '9' => 57
-  return char.charCodeAt(0) > 48 && char.charCodeAt(0) < 57;
+  return char.charCodeAt(0) >= 48 && char.charCodeAt(0) <= 57;
 }
 
 function is_punc(char: string) {
@@ -157,7 +157,8 @@ class TokenStream {
   read_escaped(end: string) {
     let escaped = false;
     let str = '';
-    while(this.input.eof()) {
+    this.input.next();
+    while(!this.input.eof()) {
       const char = this.input.next();
       if (escaped) {
         str += char;
@@ -185,6 +186,17 @@ class TokenStream {
 
   eof() {
     return this.peek() === null;
+  }
+
+  [Symbol.iterator]() {
+    const self = this;
+    return {
+      next() {
+        const done = self.eof();
+        const nextValue = self.next();
+        return { value: nextValue, done }
+      }
+    }
   }
 }
 
