@@ -184,6 +184,10 @@ class TokenStream {
     return token ?? this.read_next();
   }
 
+  croak(msg: string): never {
+    this.input.croak(msg);
+  }
+
   eof() {
     return this.peek() === null;
   }
