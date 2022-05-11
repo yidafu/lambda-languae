@@ -11,6 +11,51 @@ const PRECEDENCE = new Map<string, number>([
   ['*', 20], ['/', 20], ['%', 20],
 ])
 
+interface ILambdaNode {
+  type: 'lambda',
+  vars: IAstNode[],
+  body: IExpressionNode;
+}
+
+type IVariableNode = string
+
+interface IExpressionNode {
+
+}
+
+interface IBooleanNode {
+  type: 'boolean';
+  value: boolean;
+}
+
+interface IProgramNode {
+  type: 'program',
+  program: IExpressionNode[],
+}
+
+interface IIfNode {
+  type: 'if',
+  condition: IExpressionNode,
+  then: IExpressionNode,
+  else?: IExpressionNode,
+}
+
+interface IAssignNode {
+  type: 'assign',
+  operator: string;
+  left: IAstNode,
+  right: IAstNode,
+}
+
+interface IBinaryNode {
+  type: 'binary',
+  operator: string,
+  left: IAstNode,
+  right: IAstNode,
+}
+
+type IAstNode = IIfNode | IProgramNode | IExpressionNode | IVariableNode | ILambdaNode | IAssignNode | IBinaryNode;
+
 class Parser {
   private input: TokenStream;
 
@@ -18,7 +63,7 @@ class Parser {
     this.input = input
   }
 
-  parse_toplevel() {
+  parse_toplevel(): IProgramNode {
     const program = [];
     while (!this.input.eof()) {
       program.push(this.parse_expression());
@@ -31,15 +76,23 @@ class Parser {
     return { type: 'program', program };
   }
 
-  parse_lambda() {
+  parse_lambda(): ILambdaNode {
     return {
       type: 'lambda',
-      vars: this.delimited('(', ')', ',', parse_vername),
+      vars: this.delimited('(', ')', ',', this.parse_varname.bind(this)),
       body: this.parse_expression(),
     };
   }
 
-  parse_if() {
+  parse_varname(): string {
+    const token = this.input.next();
+    if (token?.type !== 'variable') {
+      this.input.croak('Expecting variable name')
+    }
+    return token.value;
+  }
+
+  parse_if(): IIfNode {
     this.skip_keyword('if');
     const condition = this.parse_expression();
     if (!this.is_punctuation('{'))  {
@@ -47,7 +100,7 @@ class Parser {
     }
     const thenExpression = this.parse_expression();
 
-    const retValue = { type: 'if', condition, then: thenExpression };
+    const retValue: IIfNode = { type: 'if', condition, then: thenExpression };
     if (this.is_keyword('else')) {
       this.input.next();
       retValue.else = this.parse_expression();
@@ -56,7 +109,7 @@ class Parser {
     return retValue;
   }
 
-  parse_atom() {
+  parse_atom(): IAstNode {
     return this.maybe_call(() => {
       if (this.is_punctuation('(')) {
         this.input.next();
@@ -73,7 +126,7 @@ class Parser {
         return this.parse_if();
       }
       if (this.is_keyword('ture') || this.is_keyword('false')) {
-        return this.parse_bool();
+        return this.parse_boolean();
       }
       if (this.is_keyword('lambda') || this.is_keyword('λ')) {
         this.input.next();
@@ -81,28 +134,35 @@ class Parser {
       }
 
       const token = this.input.next();
-      if (['var', 'number', 'string'].includes(token?.type)) {
+      if (token?.type && ['variable', 'number', 'string'].includes(token.type)) {
         return token;
       }
 
-      throw new Error('')
-    })
+      this.unexpected()
+    });
   }
 
-  parse_progrma() {
-    const program = this.delimited('{', '}', ';', this.parse_expression);
+  parse_boolean(): IBooleanNode {
+    return {
+      type: 'boolean',
+      value: this.input.next()?.value === 'true',
+    }
+  }
+
+  parse_program() {
+    const program = this.delimited('{', '}', ';', this.parse_expression.bind(this));
     if (program.length === 0) return FALSE_AST_TOKEN;
     if (program.length === 1) return program[0];
     return { type: 'program', program }
   }
 
-  parse_expression() {
+  parse_expression(): IExpressionNode {
     return this.maybe_call(() => {
       return this.maybe_binary(this.parse_atom(), 0)
-    })
+    });
   }
 
-  maybe_call(expr: () => unknown) {
+  maybe_call(expr: () => IAstNode) {
     const exprRes = expr()
     if (this.is_punctuation('(')) {
       return this.parse_call(exprRes)
@@ -111,14 +171,14 @@ class Parser {
     }
   }
 
-  maybe_binary(left: any, precedunce: number) {
-    const token = this.is_operator();
+  maybe_binary(left: IAstNode, precedunce: number): IAstNode {
+    const token = this.is_operator() && this.input.peek();
     if (token) {
-      const his_precedence = PRECEDENCE.get(token.value)
+      const his_precedence = PRECEDENCE.get(token.value as string)
       if (his_precedence !== undefined && his_precedence > precedunce) {
         this.input.next();
         return this.maybe_binary({
-          type: token.value === '=' ? 'assing' : 'binary',
+          type: token.value === '=' ? 'assign' : 'binary',
           operator: token.value,
           left,
           right: this.maybe_binary(this.parse_atom(), his_precedence)
@@ -132,13 +192,14 @@ class Parser {
     return {
       type: 'call',
       func,
-      args: this.delimited('(', ')', ',', this.parse_expression)
+      args: this.delimited('(', ')', ',', this.parse_expression.bind(this))
     }
   }
 
-  delimited(starSign: string, endSign: string, separator: string, parser) {
+  delimited(startSign: string, endSign: string, separator: string, parser: () => IAstNode): IAstNode[] {
     const args = [];
     let first = true;
+    this.skip_punctuation(startSign)
     while(!this.input.eof()) {
       if (this.is_punctuation(endSign)) break;
 
@@ -170,12 +231,14 @@ class Parser {
   is_operator(operator?: string) {
     const token = this.input.peek();
     if (token && token.type === 'operator') {
-      if (operator && token.value !== operator) {
-        return null;
+
+      if (operator === undefined) {
+        return true;
+      } else if (operator && token.value !== operator) {
+        return true;
       }
-      return token;
     }
-    return null;
+    return false;
   }
 
   skip_punctuation(char: string) {
@@ -203,7 +266,9 @@ class Parser {
   }
 
 
-  unexpected() {
+  unexpected(): never {
     this.input.croak('Unexpected token: ' + JSON.stringify(this.input.peek()))
   }
 }
+
+export { Parser }
