@@ -4,8 +4,7 @@ class Environment {
   parent: Environment | null;
 
   /**
-   * TODO: 基于链表实现
-   * @param parent 
+   * @param parent
    */
   constructor(parent: Environment | null = null) {
     this.varialbles = new Map<string, any>();
@@ -28,8 +27,9 @@ class Environment {
   }
 
   get(name: string) {
-    if (this.varialbles.has(name)) {
-      return this.varialbles.get(name);
+    const scope = this.lookup(name);
+    if (scope) {
+      return scope.varialbles.get(name);
     }
     throw new Error('Undefined variable ' + name)
   }
