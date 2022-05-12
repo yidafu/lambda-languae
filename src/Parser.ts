@@ -1,6 +1,6 @@
-import { TokenStream } from "./TokenStream";
+import { TokenStream, TOperator } from "./TokenStream";
 
-const FALSE_AST_TOKEN = { type: 'boolean', value: false };
+const FALSE_AST_TOKEN: IBooleanNode = { type: 'boolean', value: false };
 
 const PRECEDENCE = new Map<string, number>([
   ['=', 1],
@@ -11,16 +11,10 @@ const PRECEDENCE = new Map<string, number>([
   ['*', 20], ['/', 20], ['%', 20],
 ])
 
-interface ILambdaNode {
+export interface ILambdaNode {
   type: 'lambda',
-  vars: IAstNode[],
-  body: IExpressionNode;
-}
-
-type IVariableNode = string
-
-interface IExpressionNode {
-
+  vars: string[],
+  body: IAstNode;
 }
 
 interface IBooleanNode {
@@ -30,31 +24,52 @@ interface IBooleanNode {
 
 interface IProgramNode {
   type: 'program',
-  program: IExpressionNode[],
+  program: IAstNode[],
 }
 
 interface IIfNode {
   type: 'if',
-  condition: IExpressionNode,
-  then: IExpressionNode,
-  else?: IExpressionNode,
+  condition: IAstNode,
+  then: IAstNode,
+  else?: IAstNode,
 }
 
 interface IAssignNode {
   type: 'assign',
-  operator: string;
+  operator: TOperator;
   left: IAstNode,
   right: IAstNode,
 }
 
 interface IBinaryNode {
   type: 'binary',
-  operator: string,
+  operator: TOperator,
   left: IAstNode,
   right: IAstNode,
 }
 
-type IAstNode = IIfNode | IProgramNode | IExpressionNode | IVariableNode | ILambdaNode | IAssignNode | IBinaryNode;
+interface INumberNode {
+  type: 'number',
+  value: number;
+}
+
+interface IFunctionCallNode {
+  type: 'call',
+  args: IAstNode[]
+  func: IAstNode;
+}
+
+interface IStringNode {
+  type: 'string',
+  value: string;
+}
+
+interface IVariableNode {
+  type: 'variable',
+  value: string;
+}
+
+export type IAstNode = IIfNode | IProgramNode | ILambdaNode | IAssignNode | IBinaryNode | INumberNode | IStringNode | IFunctionCallNode | IBooleanNode | IVariableNode;
 
 class Parser {
   private input: TokenStream;
@@ -79,7 +94,7 @@ class Parser {
   parse_lambda(): ILambdaNode {
     return {
       type: 'lambda',
-      vars: this.delimited('(', ')', ',', this.parse_varname.bind(this)),
+      vars: this.delimited<string>('(', ')', ',', this.parse_varname.bind(this)),
       body: this.parse_expression(),
     };
   }
@@ -135,7 +150,7 @@ class Parser {
 
       const token = this.input.next();
       if (token?.type && ['variable', 'number', 'string'].includes(token.type)) {
-        return token;
+        return token as IAstNode;
       }
 
       this.unexpected()
@@ -149,14 +164,14 @@ class Parser {
     }
   }
 
-  parse_program() {
+  parse_program(): IAstNode {
     const program = this.delimited('{', '}', ';', this.parse_expression.bind(this));
     if (program.length === 0) return FALSE_AST_TOKEN;
     if (program.length === 1) return program[0];
     return { type: 'program', program }
   }
 
-  parse_expression(): IExpressionNode {
+  parse_expression(): IAstNode {
     return this.maybe_call(() => {
       return this.maybe_binary(this.parse_atom(), 0)
     });
@@ -179,7 +194,7 @@ class Parser {
         this.input.next();
         return this.maybe_binary({
           type: token.value === '=' ? 'assign' : 'binary',
-          operator: token.value,
+          operator: token.value as TOperator,
           left,
           right: this.maybe_binary(this.parse_atom(), his_precedence)
         }, precedunce)
@@ -188,7 +203,7 @@ class Parser {
     return left;
   }
 
-  parse_call(func: unknown) {
+  parse_call(func: IAstNode): IFunctionCallNode {
     return {
       type: 'call',
       func,
@@ -196,7 +211,7 @@ class Parser {
     }
   }
 
-  delimited(startSign: string, endSign: string, separator: string, parser: () => IAstNode): IAstNode[] {
+  delimited<T = IAstNode>(startSign: string, endSign: string, separator: string, parser: () => T): T[] {
     const args = [];
     let first = true;
     this.skip_punctuation(startSign)

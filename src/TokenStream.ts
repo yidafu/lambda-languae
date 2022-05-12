@@ -30,7 +30,7 @@ interface IPunctuationToken {
   value: TPunctuation,
 }
 
-type TOperator = '+' | '-' | '*' | '/' | '%' | '=' | '&' | '|' | '<' | '>' | '!';
+export type TOperator = '+' | '-' | '*' | '/' | '%' | '=' | '&&' | '||' | '<' | '>' | '>=' | '<=' | '==' | '!=' | '!';
 interface IOperatorToken  {
   type: 'operator',
   value: TOperator
