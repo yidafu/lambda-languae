@@ -11,8 +11,8 @@ interface INumberToken {
   value: number,
 }
 
-interface IIdentifierToken {
-  type: 'identifier',
+interface IVariableToken {
+  type: 'variable',
   value: string;
 }
 
@@ -30,13 +30,13 @@ interface IPunctuationToken {
   value: TPunctuation,
 }
 
-type TOperator = '+' | '-' | '*' | '/' | '%' | '=' | '&' | '|' | '<' | '>' | '!';
+export type TOperator = '+' | '-' | '*' | '/' | '%' | '=' | '&&' | '||' | '<' | '>' | '>=' | '<=' | '==' | '!=' | '!';
 interface IOperatorToken  {
   type: 'operator',
   value: TOperator
 }
 
-type IToken = IStringToken | INumberToken | IIdentifierToken | IKeywordToken | IPunctuationToken | IOperatorToken | null;
+type IToken = IStringToken | INumberToken | IVariableToken | IKeywordToken | IPunctuationToken | IOperatorToken | null;
 
 
 
@@ -140,7 +140,7 @@ class TokenStream {
     return { type: 'number', value: parseFloat(number) };
   }
 
-  read_ident(): IIdentifierToken | IKeywordToken {
+  read_ident(): IVariableToken | IKeywordToken {
     const identifier = this.read_while(is_identifier);
     if (is_keyword(identifier)) {
       return {
@@ -149,7 +149,7 @@ class TokenStream {
       }
     }
     return {
-      type: 'identifier',
+      type: 'variable',
       value: identifier, 
     };
   }
@@ -178,10 +178,14 @@ class TokenStream {
     return this.current ?? (this.current = this.read_next())
   }
 
-  next() {
+  next(): IToken {
     let token = this.current;
     this.current = null;
     return token ?? this.read_next();
+  }
+
+  croak(msg: string): never {
+    this.input.croak(msg);
   }
 
   eof() {

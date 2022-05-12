@@ -1,0 +1,27 @@
+cons = λ(a, b) λ(f) f(a, b);
+car = λ(cell) cell(λ(a, b) a);
+cdr = λ(cell) cell(λ(a, b) b);
+NIL = λ(f) f(NIL, NIL);
+
+print("\\n");
+x = cons(1, cons(2, cons(3, cons(4, cons(5, NIL)))));
+print(car(x));                      # 1
+print(car(cdr(x)));                 # 2  in Lisp this is abbrev. cadr
+print(car(cdr(cdr(x))));            # 3                          caddr
+print(car(cdr(cdr(cdr(x)))));       # 4                          cadddr
+print(car(cdr(cdr(cdr(cdr(x))))));  # 5  but no abbreviation for this one.
+
+foreach = λ(list, f)
+            if list != NIL {
+              f(car(list));
+              foreach(cdr(list), f);
+            };
+foreach(x, println);
+
+
+range = λ(a, b)
+          if a <= b then cons(a, range(a + 1, b))
+                    else NIL;
+
+# print the squares of 1..8
+foreach(range(1, 8), λ(x) println(x * x));
